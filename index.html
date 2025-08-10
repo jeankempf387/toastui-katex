@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ToastUI Editor + KaTeX (auto-render)</title>
+<title>ToastUI Editor + KaTeX + Import/Export</title>
 
 <!-- Toast UI Editor CSS -->
 <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
 
-<!-- KaTeX CSS (nécessaire pour l'affichage) -->
+<!-- KaTeX CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
 
 <style>
@@ -33,31 +33,41 @@
     border: none;
     color: white;
     border-radius: 4px;
+    user-select: none;
   }
-  button:hover { background-color: #0056b3; }
-  /* un petit réglage pour que les formules aient une taille lisible */
-  .toastui-editor-contents .katex { font-size: 1.05em; }
+  button:hover {
+    background-color: #0056b3;
+  }
+  .toastui-editor-contents .katex {
+    font-size: 1.05em;
+  }
+  /* input file caché */
+  #fileInput {
+    display: none;
+  }
 </style>
 </head>
 <body>
 
-<h1>Éditeur Markdown Toast UI</h1>
+<h1>Éditeur Markdown Toast UI + KaTeX</h1>
 
 <div id="editor"></div>
 
-<button id="downloadBtn">Télécharger le Markdown</button>
-<button id="uploadBtn">Importer un Markdown</button>
-<input type="file" id="fileInput" accept=".md" style="display:none" />
+<!-- Boutons Import / Export -->
+<div>
+  <button id="importBtn" type="button">Importer un fichier Markdown (.md)</button>
+  <button id="downloadBtn" type="button">Télécharger le Markdown</button>
+  <input type="file" id="fileInput" accept=".md,text/markdown,text/plain" />
+</div>
 
 <!-- Toast UI Editor JS -->
 <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 
-<!-- KaTeX + auto-render (auto-render vient après katex) -->
+<!-- KaTeX + auto-render -->
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
 <script>
-  // --- Initialisation Toast UI ---
   const editor = new toastui.Editor({
     el: document.querySelector('#editor'),
     height: '600px',
@@ -66,47 +76,75 @@
     useCommandShortcut: true
   });
 
-  // --- Fonction d'application KaTeX sur la preview ---
   function findPreviewElement() {
-    return document.querySelector('#editor .toastui-editor-contents')
-        || document.querySelector('#editor .toastui-editor-md-preview')
-        || document.querySelector('#editor .toastui-editor-preview')
-        || document.querySelector('.toastui-editor-contents');
+    return document.querySelector('#editor .toastui-editor-md-preview')
+      || document.querySelector('#editor .toastui-editor-preview')
+      || document.querySelector('.toastui-editor-md-preview')
+      || document.querySelector('.toastui-editor-preview');
   }
 
-  let katexTimeout = null;
   function renderKaTeXInPreview() {
     const preview = findPreviewElement();
     if (!preview || typeof renderMathInElement !== 'function') return;
-    clearTimeout(katexTimeout);
-    katexTimeout = setTimeout(() => {
-      try {
-        renderMathInElement(preview, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '\\[', right: '\\]', display: true},
-            {left: '$', right: '$', display: false},
-            {left: '\\(', right: '\\)', display: false}
-          ],
-          throwOnError: false,
-        });
-      } catch (err) {
-        console.warn('KaTeX render error:', err);
-      }
-    }, 120);
+
+    renderMathInElement(preview, {
+      delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "\\[", right: "\\]", display: true},
+        {left: "$", right: "$", display: false},
+        {left: "\\(", right: "\\)", display: false}
+      ],
+      throwOnError: false,
+    });
   }
 
-  setTimeout(renderKaTeXInPreview, 200);
+  let katexTimeout;
   editor.on('change', () => {
-    renderKaTeXInPreview();
+    clearTimeout(katexTimeout);
+    katexTimeout = setTimeout(renderKaTeXInPreview, 150);
   });
+  setTimeout(renderKaTeXInPreview, 200);
 
-  // --- Bouton téléchargement Markdown ---
   document.getElementById('downloadBtn').addEventListener('click', () => {
     const markdown = editor.getMarkdown();
-    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([markdown], {type: 'text/markdown;charset=utf-8'});
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'ar
+    a.download = 'article.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  const fileInput = document.getElementById('fileInput');
+  const importBtn = document.getElementById('importBtn');
+
+  importBtn.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.md')) {
+      alert("Merci de sélectionner un fichier avec l'extension .md");
+      fileInput.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      editor.setMarkdown(e.target.result);
+      renderKaTeXInPreview();
+    };
+    reader.readAsText(file);
+    fileInput.value = "";
+  });
+</script>
+
+</body>
+</html>
